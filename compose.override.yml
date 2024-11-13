@@ -1,0 +1,7 @@
+version: '3.8'
+
+services:
+  api_gateway:
+    volumes:
+      - ./api_gateway/app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload 

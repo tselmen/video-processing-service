@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: video_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api_gateway:
+    build: ./api_gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+      - MYSQL_DATABASE=video_db
+      - UPLOAD_DIR=/uploads
+      - ENCODED_DIR=/encoded
+      - THUMBNAIL_DIR=/thumbnails
+    volumes:
+      - uploads_data:/uploads
+      - encoded_data:/encoded
+      - thumbnail_data:/thumbnails
+      - ./api_gateway/app:/app/app
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  upload_service:
+    build: ./upload_service
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - UPLOAD_DIR=/uploads
+      - ENCODED_DIR=/encoded
+      - THUMBNAIL_DIR=/thumbnails
+    volumes:
+      - uploads_data:/uploads
+      - encoded_data:/encoded
+      - thumbnail_data:/thumbnails
+      - ./upload_service/app:/app/app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  processing_service:
+    build: ./processing_service
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+      - MYSQL_DATABASE=video_db
+      - UPLOAD_DIR=/uploads
+      - ENCODED_DIR=/encoded
+      - THUMBNAIL_DIR=/thumbnails
+    volumes:
+      - uploads_data:/uploads
+      - encoded_data:/encoded
+      - thumbnail_data:/thumbnails
+      - ./processing_service/app:/app/app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  thumbnail_service:
+    build: ./thumbnail_service
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - UPLOAD_DIR=/uploads
+      - ENCODED_DIR=/encoded
+      - THUMBNAIL_DIR=/thumbnails
+    volumes:
+      - uploads_data:/uploads
+      - encoded_data:/encoded
+      - thumbnail_data:/thumbnails
+      - ./thumbnail_service/app:/app/app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  uploads_data:
+  encoded_data:
+  thumbnail_data:

@@ -1,0 +1,7 @@
+fastapi
+aio-pika
+python-multipart
+sqlalchemy
+aiomysql
+python-dotenv
+pydantic-settings
